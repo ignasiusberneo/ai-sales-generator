@@ -11,8 +11,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { productName, description, features, targetAudience, price, usp } =
-      await req.json();
+    const {
+      productName,
+      description,
+      features,
+      targetAudience,
+      price,
+      usp,
+      editId,
+    } = await req.json();
 
     if (
       !productName ||
@@ -79,7 +86,6 @@ Respond ONLY with a valid JSON object in this exact format, no markdown, no back
 
     const raw = completion.choices[0].message.content || "";
 
-    // Clean response in case model adds backticks
     const cleaned = raw
       .replace(/```json/g, "")
       .replace(/```/g, "")
@@ -95,19 +101,37 @@ Respond ONLY with a valid JSON object in this exact format, no markdown, no back
       );
     }
 
-    // Save to database
-    const savedPage = await prisma.salesPage.create({
-      data: {
-        userId: session.user.id,
-        productName,
-        description,
-        features,
-        targetAudience,
-        price,
-        usp: usp || "",
-        generatedContent: JSON.stringify(generatedContent),
-      },
-    });
+    let savedPage;
+
+    if (editId) {
+      // Update existing page
+      savedPage = await prisma.salesPage.update({
+        where: { id: editId },
+        data: {
+          productName,
+          description,
+          features,
+          targetAudience,
+          price,
+          usp: usp || "",
+          generatedContent: JSON.stringify(generatedContent),
+        },
+      });
+    } else {
+      // Create new page
+      savedPage = await prisma.salesPage.create({
+        data: {
+          userId: session.user.id,
+          productName,
+          description,
+          features,
+          targetAudience,
+          price,
+          usp: usp || "",
+          generatedContent: JSON.stringify(generatedContent),
+        },
+      });
+    }
 
     return NextResponse.json({ id: savedPage.id }, { status: 201 });
   } catch (error) {
